@@ -6,6 +6,9 @@
 #include <stdlib.h>
 
 
+MarioState mario;
+
+
 static Surface *findTriFromListBelow(
   SurfaceNode *triangles,
   s32 x,
@@ -60,4 +63,51 @@ f32 findFloor(v3f pos, Surface **pfloor) {
   *pfloor = findTriFromListBelow(allFloors.tail, x, y, z, &height);
   
   return height;
+}
+
+
+void updateAirWithoutTurn(MarioState *m) {
+  m->hSpeed = incTowardAsymF(m->hSpeed, 0.0f, 0.35f, 0.35f);
+
+  f32 sideSpeed = 0.0f;
+
+  // Actual game uses m->input & input_nonzero_analog
+  if (m->intendedMag != 0.0f) {
+    s16 dyaw = m->intendedYaw - m->facingYaw;
+    f32 mag = m->intendedMag / 32.0f;
+
+    m->hSpeed += 1.5f * coss(dyaw) * mag;
+    sideSpeed = 10.0f * sins(dyaw) * mag;
+  }
+
+  if (m->hSpeed > 32.0f)
+    m->hSpeed -= 1.0f;
+  if (m->hSpeed < -16.0f)
+    m->hSpeed += 2.0f;
+  
+  m->vel.x = m->hSpeed * sins(m->facingYaw);
+  m->vel.z = m->hSpeed * coss(m->facingYaw);
+
+  m->vel.x += sideSpeed * sins(m->facingYaw + 0x4000);
+  m->vel.z += sideSpeed * coss(m->facingYaw + 0x4000);
+}
+
+
+bool onFloor(MarioState *m) {
+  Surface *floor;
+  findFloor(m->pos, &floor);
+  return floor != NULL;
+}
+
+
+bool quarterStepLands(MarioState *m) {
+  v3f qstep = {
+    m->pos.x + m->vel.x / 4.0f,
+    m->pos.y + m->vel.y / 4.0f,
+    m->pos.z + m->vel.z / 4.0f,
+  };
+
+  Surface *floor;
+  findFloor(qstep, &floor);
+  return floor != NULL;
 }

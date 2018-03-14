@@ -9,10 +9,20 @@
 #include <stdio.h>
 
 
-void frameAdvance(void) {
-  clearSurfaces();
-  updateTtcCog();
-  loadObjectCollisionModel(&cog);
+Object cog;
+MarioState mario;
+
+
+void drawWalls(void) {
+  glColor3f(0.4f, 0.4f, 0.4f);
+
+  glBegin(GL_LINES);
+  glVertex2f(2081, -861);
+  glVertex2f(862, -2080);
+
+  glVertex2f(2081, 862);
+  glVertex2f(2081, -861);
+  glEnd();
 }
 
 
@@ -40,12 +50,59 @@ void drawSurface(Surface *tri) {
 }
 
 
+void drawSurfaces(void) {
+  glColor3f(0.8f, 0.8f, 0.8f);
+  for (SurfaceNode *n = allFloors.tail; n != NULL; n = n->tail)
+    drawSurface(n->head);
+}
+
+
+void drawMario(MarioState *m) {
+  v3f face = { sins(m->facingYaw), 0, coss(m->facingYaw) };
+  v3f side = { coss(m->facingYaw), 0, -sins(m->facingYaw) };
+
+  f32 width = 30;
+  f32 length = 40;
+
+  glColor3f(0.8f, 0, 0);
+
+  glBegin(GL_TRIANGLES);
+  glVertex2f(
+    m->pos.x - face.x * length - side.x * width/2,
+    m->pos.z - face.z * length - side.z * width/2);
+  glVertex2f(
+    m->pos.x - face.x * length + side.x * width/2,
+    m->pos.z - face.z * length + side.z * width/2);
+  glVertex2f(m->pos.x, m->pos.z);
+  glEnd();
+
+  v3f qstep = {
+    m->pos.x + m->vel.x / 4.0f,
+    m->pos.y + m->vel.y / 4.0f,
+    m->pos.z + m->vel.z / 4.0f,
+  };
+
+  glBegin(GL_LINES);
+  glVertex2f(m->pos.x, m->pos.z);
+  glVertex2f(qstep.x, qstep.z);
+  glEnd();
+}
+
+
 int main(int argc, char **argv) {
   (void) argc;
   (void) argv;
 
-  ttcSpeedSetting = 2;
+  ttcSpeedSetting = 3;
 
+  cog.pos = (v3f) { 1490, -2088, -873 };
+  cog.surfaceModel = &cogModel[0];
+
+  mario.intendedMag = 32.0f;
+  mario.intendedYaw = -0x122E;
+  mario.facingYaw = -0x40C;
+  mario.pos = (v3f) { 1420, -2088, -1139.4f };
+  mario.hSpeed = 33;
 
   glfwInit();
 
@@ -57,18 +114,25 @@ int main(int argc, char **argv) {
     glClear(GL_COLOR_BUFFER_BIT);
 
     glLoadIdentity();
-    glRotatef(90, 0, 0, 1);
+    glRotatef(45, 0, 0, 1);
     float scale = 1/600.0f;
     glScalef(-scale, scale, 1);
     glTranslatef(-cog.pos.x, -cog.pos.z, 0);
 
-    frameAdvance();
+    clearSurfaces();
+    updateTtcCog(&cog);
+    loadObjectCollisionModel(&cog);
 
-    drawLegend(cog.pos.x + 400, cog.pos.z + 400, 100);
+    if (onFloor(&mario))
+      printf("Landed at hspeed = %f\n", mario.hSpeed);
+    updateAirWithoutTurn(&mario);
+    if (!quarterStepLands(&mario))
+      printf("Failed to land at hspeed = %f\n", mario.hSpeed);
 
-    glColor3f(0.8f, 0.8f, 0.8f);
-    for (SurfaceNode *n = allFloors.tail; n != NULL; n = n->tail)
-      drawSurface(n->head);
+    drawWalls();
+    drawLegend(cog.pos.x, cog.pos.z + 600, 100);
+    drawSurfaces();
+    drawMario(&mario);
 
     glfwSwapBuffers(window);
     glfwPollEvents();

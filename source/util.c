@@ -77,6 +77,22 @@ void matrixFromTransAndRot(Mtxfp dst, v3f *translate, v3h *rotate) {
 }
 
 
+f32 incTowardAsymF(f32 speed, f32 target, f32 posDelta, f32 negDelta) {
+  if (speed < target) {
+    if (speed + posDelta > target)
+      return target;
+    else
+      return speed + posDelta;
+  }
+  else {
+    if (speed - negDelta < target)
+      return target;
+    else
+      return speed - negDelta;
+  }
+}
+
+
 bool incTowardSymFP(f32 *x, f32 target, f32 delta) {
   if (*x > target)
     delta = -delta;

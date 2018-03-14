@@ -52,6 +52,7 @@ extern u16 rngState;
 
 s16 atan2xy(f32 x, f32 y);
 void matrixFromTransAndRot(Mtxfp dst, v3f *translate, v3h *rotate);
+f32 incTowardAsymF(f32 speed, f32 target, f32 posDelta, f32 negDelta);
 bool incTowardSymFP(f32 *x, f32 target, f32 delta);
 u16 randomU16(void);
 s32 randomUnit();

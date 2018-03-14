@@ -6,10 +6,10 @@
 
 
 extern s16 ttcSpeedSetting;
-extern Object cog;
+extern s16 cogModel[];
 
 
-void updateTtcCog(void);
+void updateTtcCog(Object *o);
 
 
 #endif
