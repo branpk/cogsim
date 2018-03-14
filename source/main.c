@@ -9,8 +9,70 @@
 #include <stdio.h>
 
 
+bool checkInput(MarioState *m, f32 mag, f32 yaw) {
+  f32 startHSpeed = m->hSpeed;
+
+  m->intendedMag = mag;
+  m->intendedYaw = yaw;
+  updateAirWithoutTurn(m);
+
+  bool works = quarterStepLands(m);
+
+  m->hSpeed = startHSpeed;
+  return works;
+}
+
+
+bool computeOptimalInput(MarioState *m) {
+  for (u16 dyaw = 0; dyaw <= 0x8000; dyaw += 0x10) {
+    if (checkInput(m, 32.0f, m->facingYaw + dyaw)) return true;
+    if (checkInput(m, 32.0f, m->facingYaw - dyaw)) return true;
+  }
+  return false;
+}
+
+
 Object cog;
 MarioState mario;
+
+
+typedef enum {
+  fr_success,
+  fr_landed_on_cog,
+  fr_failed_to_land,
+  fr_slowed_down,
+} FrameResult;
+
+
+FrameResult frameAdvance(void) {
+  clearSurfaces();
+  updateTtcCog(&cog);
+  loadObjectCollisionModel(&cog);
+
+  if (onFloor(&mario))
+    return fr_landed_on_cog;
+
+  f32 startHSpeed = mario.hSpeed;
+
+  if (!computeOptimalInput(&mario))
+    return fr_failed_to_land;
+
+  updateAirWithoutTurn(&mario);
+  
+  if (!quarterStepLands(&mario)) {
+    printf("Internal error: quarter step inconsistency\n");
+    return fr_failed_to_land;
+  }
+
+  if (mario.hSpeed <= startHSpeed)
+    return fr_slowed_down;
+
+  return fr_success;
+}
+
+
+bool unitSquareMode = false;
+int zoomAmount = 0;
 
 
 void drawWalls(void) {
@@ -26,18 +88,24 @@ void drawWalls(void) {
 }
 
 
-void drawLegend(f32 x, f32 z, f32 size) {
-  glColor3f(1, 0, 0);
-  glBegin(GL_LINES);
-  glVertex2f(x, z);
-  glVertex2f(x + size, z);
-  glEnd();
+void drawUnitSquares(s16 x0, s16 z0, s16 x1, s16 z1) {
+  for (s16 x = x0; x < x1; x++) {
+    for (s16 z = z0; z < z1; z++) {
+      v3f pos = { x, cog.pos.y, z };
 
-  glColor3f(0, 0, 1);
-  glBegin(GL_LINES);
-  glVertex2f(x, z);
-  glVertex2f(x, z + size);
-  glEnd();
+      Surface *floor;
+      findFloor(pos, &floor);
+
+      if (floor != NULL) {
+        glBegin(GL_TRIANGLE_STRIP);
+        glVertex2f(pos.x, pos.z);
+        glVertex2f(pos.x + 1, pos.z);
+        glVertex2f(pos.x, pos.z + 1);
+        glVertex2f(pos.x + 1, pos.z + 1);
+        glEnd();
+      }
+    }
+  }
 }
 
 
@@ -50,10 +118,21 @@ void drawSurface(Surface *tri) {
 }
 
 
-void drawSurfaces(void) {
-  glColor3f(0.8f, 0.8f, 0.8f);
-  for (SurfaceNode *n = allFloors.tail; n != NULL; n = n->tail)
-    drawSurface(n->head);
+void drawSurfaces(v3f center, f32 span) {
+  if (unitSquareMode) {
+    glColor3f(0.7f, 0.7f, 0.7f);
+    span = 1.5 * span;
+    s16 x0 = (s16) (center.x - span/2) - 1;
+    s16 z0 = (s16) (center.z - span/2) - 1;
+    s16 x1 = (s16) (center.x + span/2) + 1;
+    s16 z1 = (s16) (center.z + span/2) + 1;
+    drawUnitSquares(x0, z0, x1, z1);
+  }
+  else {
+    glColor3f(0.8f, 0.8f, 0.8f);
+    for (SurfaceNode *n = allFloors.tail; n != NULL; n = n->tail)
+      drawSurface(n->head);
+  }
 }
 
 
@@ -89,6 +168,32 @@ void drawMario(MarioState *m) {
 }
 
 
+void kbCallback(
+  GLFWwindow *window, int key, int scancode, int action, int mods)
+{
+  (void) window;
+  (void) scancode;
+  (void) mods;
+
+  if (key == GLFW_KEY_U && action == GLFW_PRESS)
+    unitSquareMode = !unitSquareMode;
+
+  if (key == GLFW_KEY_UP && action != GLFW_RELEASE)
+    zoomAmount += 1;
+  if (key == GLFW_KEY_DOWN && action != GLFW_RELEASE)
+    zoomAmount -= 1;
+  if (zoomAmount < -1) zoomAmount = -1;
+  if (zoomAmount > 10) zoomAmount = 10;
+}
+
+
+f32 computeZoomSpan(int zoom) {
+  if (zoom > 0) return 0.5f * computeZoomSpan(zoom - 1);
+  if (zoom < 0) return 1.5f * computeZoomSpan(zoom + 1);
+  return 1200.0f;
+}
+
+
 int main(int argc, char **argv) {
   (void) argc;
   (void) argv;
@@ -98,8 +203,6 @@ int main(int argc, char **argv) {
   cog.pos = (v3f) { 1490, -2088, -873 };
   cog.surfaceModel = &cogModel[0];
 
-  mario.intendedMag = 32.0f;
-  mario.intendedYaw = -0x122E;
   mario.facingYaw = -0x40C;
   mario.pos = (v3f) { 1420, -2088, -1139.4f };
   mario.hSpeed = 33;
@@ -108,30 +211,42 @@ int main(int argc, char **argv) {
 
   GLFWwindow *window = glfwCreateWindow(
     480, 480, "TTC Cog Simulator", NULL, NULL);
+  glfwSetKeyCallback(window, kbCallback);
   glfwMakeContextCurrent(window);
 
   while (!glfwWindowShouldClose(window)) {
     glClear(GL_COLOR_BUFFER_BIT);
 
+    f32 span = computeZoomSpan(zoomAmount);
+
     glLoadIdentity();
     glRotatef(45, 0, 0, 1);
-    float scale = 1/600.0f;
+    float scale = 2/span;
     glScalef(-scale, scale, 1);
-    glTranslatef(-cog.pos.x, -cog.pos.z, 0);
+    glTranslatef(-mario.pos.x, -mario.pos.z, 0);
 
-    clearSurfaces();
-    updateTtcCog(&cog);
-    loadObjectCollisionModel(&cog);
-
-    if (onFloor(&mario))
-      printf("Landed at hspeed = %f\n", mario.hSpeed);
-    updateAirWithoutTurn(&mario);
-    if (!quarterStepLands(&mario))
-      printf("Failed to land at hspeed = %f\n", mario.hSpeed);
+    FrameResult result = frameAdvance();
+    bool failure = false;
+    switch (result) {
+    case fr_success:
+      break;
+    case fr_landed_on_cog:
+      printf("Cog slid under Mario\n");
+      failure = true;
+      break;
+    case fr_failed_to_land:
+      printf("No input causes next quarter step to land\n");
+      failure = true;
+      break;
+    case fr_slowed_down:
+      printf("Impossible to land without losing speed\n");
+      failure = true;
+      break;
+    }
+    if (failure) break;
 
     drawWalls();
-    drawLegend(cog.pos.x, cog.pos.z + 600, 100);
-    drawSurfaces();
+    drawSurfaces(mario.pos, span);
     drawMario(&mario);
 
     glfwSwapBuffers(window);
