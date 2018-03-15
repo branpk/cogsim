@@ -7,6 +7,7 @@
 
 s8 *cogRngOverride;
 s32 numCogRngCalls = 0;
+s8 cogRngCall = 127;
 
 s16 ttcSpeedSetting = 0;
 
@@ -30,6 +31,8 @@ s16 cogModel[] = {
 
 
 void updateTtcCog(Object *o) {
+  cogRngCall = 127;
+
   switch (ttcSpeedSetting) {
   case 0:
   case 1:
@@ -43,6 +46,7 @@ void updateTtcCog(Object *o) {
         rngResult = *cogRngOverride++;
       else
         rngResult = (randomU16() % 7) * randomUnit();
+      cogRngCall = rngResult;
 
       numCogRngCalls += 1;
 

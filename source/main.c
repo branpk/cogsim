@@ -83,6 +83,54 @@ static char *inputFilename = NULL;
 static char *outputFilename = NULL;
 static bool visual = false;
 
+static FILE *outputFile = NULL;
+
+
+static void recordInitState(void) {
+  if (outputFile == NULL) return;
+
+  fprintf(outputFile, "frame,rng result,mag intended,yaw intended,");
+  fprintf(outputFile, "m x,m z,m yaw,m hspeed,");
+  fprintf(outputFile, "c yaw,c speed,c speed target,c rng calls\n");
+
+  fprintf(outputFile, "0,,,,");
+
+  fprintf(outputFile, "%f,%f,", mario.pos.x, mario.pos.z);
+  fprintf(outputFile, "%d,", mario.facingYaw);
+  fprintf(outputFile, "%f,", mario.hSpeed);
+
+  fprintf(outputFile, "%d,", (s16) cog.displayAngle.yaw);
+  fprintf(outputFile, "%f,%f,", cog.yawVel, cog.yawVelTarget);
+
+  fprintf(outputFile, "0");
+
+  fprintf(outputFile, "\n");
+}
+
+
+void recordState(void) {
+  static int frames = 0;
+  frames += 1;
+  if (outputFile == NULL) return;
+
+  fprintf(outputFile, "%d,", frames);
+  if (cogRngCall != 127)
+    fprintf(outputFile, "%d", cogRngCall);
+  fprintf(outputFile, ",");
+
+  fprintf(outputFile, "%f,", mario.intendedMag);
+  fprintf(outputFile, "%d,", mario.intendedYaw);
+  fprintf(outputFile, ",,,");
+  fprintf(outputFile, "%f,", mario.hSpeed);
+
+  fprintf(outputFile, "%d,", (s16) cog.displayAngle.yaw);
+  fprintf(outputFile, "%f,%f,", cog.yawVel, cog.yawVelTarget);
+
+  fprintf(outputFile, "%d", 2 * numCogRngCalls);
+
+  fprintf(outputFile, "\n");
+}
+
 
 int main(int argc, char **argv) {
   int i = 1;
@@ -105,17 +153,23 @@ int main(int argc, char **argv) {
   if (inputFilename == NULL)
     error("Expected input filename");
   printf("Input file: \x1b[1m%s\x1b[0m\n", inputFilename);
-  if (outputFilename)
+  if (outputFilename != NULL)
     printf("Output file: \x1b[1m%s\x1b[0m\n", outputFilename);
   if (visual)
     printf("Running in visual mode\n");
 
-  ttcSpeedSetting = 0;
+  if (outputFilename != NULL) {
+    outputFile = fopen(outputFilename, "wb");
+    if (outputFile == NULL)
+      error("Failed to open '%s' for writing", outputFilename);
+  }
 
   cog.pos = (v3f) { 1490, -2088, -873 };
   cog.surfaceModel = &cogModel[0];
 
   loadState(inputFilename);
+
+  recordInitState();
 
   if (visual) {
     runVisualizer();
@@ -124,5 +178,7 @@ int main(int argc, char **argv) {
     while (frameAdvance()) {}
   }
 
+  if (outputFile != NULL)
+    fclose(outputFile);
   return 0;
 }

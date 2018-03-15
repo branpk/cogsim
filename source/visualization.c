@@ -181,7 +181,9 @@ void runVisualizer(void) {
     glScalef(-scale, scale, 1);
     glTranslatef(-mario.pos.x, -mario.pos.z, 0);
 
-    accumTime += -lastTime + (lastTime = glfwGetTime());
+    double currentTime = glfwGetTime();
+    accumTime += currentTime - lastTime;
+    lastTime = currentTime;
     while (accumTime >= 1.0/framesPerSec) {
       contUpdating = contUpdating && frameAdvance();
       accumTime -= 1.0/framesPerSec;

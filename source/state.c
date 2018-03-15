@@ -9,6 +9,9 @@
 #include <stdio.h>
 
 
+void recordState(void);
+
+
 Object cog;
 MarioState mario;
 int overrideRngLength;
@@ -112,9 +115,11 @@ bool frameAdvance(void) {
     break;
   }
 
+  if (success) recordState();
+
   if (!success) {
     printf("Final H speed: \x1b[1m%f\x1b[0m\n", mario.hSpeed);
-    printf("Lasted \x1b[%sm%d/%d\x1b[0m cog updates\n",
+    printf("Lasted \x1b[%sm%d/%d\x1b[0m cog RNG updates\n",
       numCogRngCalls >= overrideRngLength ? "92" : "91",
       numCogRngCalls,
       overrideRngLength);
