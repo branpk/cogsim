@@ -9,9 +9,6 @@
 #include <stdio.h>
 
 
-void recordState(void);
-
-
 Object cog;
 MarioState mario;
 int overrideRngLength;
@@ -40,16 +37,7 @@ static bool computeOptimalInput(MarioState *m) {
 }
 
 
-typedef enum {
-  fr_success,
-  fr_landed_on_cog,
-  fr_failed_to_land,
-  fr_slowed_down,
-  fr_not_under_ceil,
-} FrameResult;
-
-
-static FrameResult tryFrameAdvance(void) {
+FrameResult frameAdvance(void) {
   clearSurfaces();
   updateTtcCog(&cog);
   loadObjectCollisionModel(&cog);
@@ -83,46 +71,4 @@ static FrameResult tryFrameAdvance(void) {
     return fr_slowed_down;
 
   return fr_success;
-}
-
-
-bool frameAdvance(void) {
-  bool success;
-
-  switch (tryFrameAdvance()) {
-  case fr_success:
-    success = true;
-    break;
-  
-  case fr_landed_on_cog:
-    printf("Cog slid under Mario\n");
-    success = false;
-    break;
-  
-  case fr_failed_to_land:
-    printf("No input causes next quarter step to land\n");
-    success = false;
-    break;
-  
-  case fr_slowed_down:
-    printf("Impossible to land without losing speed\n");
-    success = false;
-    break;
-
-  case fr_not_under_ceil:
-    printf("Quarter step not guaranteed to be under ceiling\n");
-    success = false;
-    break;
-  }
-
-  if (success) recordState();
-
-  if (!success) {
-    printf("Final H speed: \x1b[1m%f\x1b[0m\n", mario.hSpeed);
-    printf("Lasted \x1b[%sm%d/%d\x1b[0m cog RNG updates\n",
-      numCogRngCalls >= overrideRngLength ? "92" : "91",
-      numCogRngCalls,
-      overrideRngLength);
-  }
-  return success;
 }

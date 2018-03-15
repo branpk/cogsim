@@ -12,6 +12,9 @@
 #include <stdlib.h>
 
 
+bool handleFrameResult(FrameResult result);
+
+
 static bool unitSquareMode = false;
 static int zoomAmount = 0;
 
@@ -34,10 +37,16 @@ static void drawUnitSquares(s16 x0, s16 z0, s16 x1, s16 z1) {
     for (s16 z = z0; z < z1; z++) {
       v3f pos = { x, cog.pos.y, z };
 
-      Surface *floor;
-      findFloor(pos, &floor);
+      f32 dx = pos.x - cog.pos.x;
+      f32 dz = pos.z - cog.pos.z;
+      f32 dist = sqrtf(dx*dx + dz*dz);
+      if (dist > 350) continue;
 
-      if (floor != NULL) {
+      Surface *floor = NULL;
+      if (!(dist < 200))
+        findFloor(pos, &floor);
+
+      if (dist < 200 || floor != NULL) {
         glBegin(GL_TRIANGLE_STRIP);
         glVertex2f(pos.x, pos.z);
         glVertex2f(pos.x + 1, pos.z);
@@ -185,7 +194,8 @@ void runVisualizer(void) {
     accumTime += currentTime - lastTime;
     lastTime = currentTime;
     while (accumTime >= 1.0/framesPerSec) {
-      contUpdating = contUpdating && frameAdvance();
+      frameAdvance();
+      // contUpdating = contUpdating && handleFrameResult(frameAdvance());
       accumTime -= 1.0/framesPerSec;
     }
 

@@ -123,7 +123,7 @@ static void recordInitState(void) {
 }
 
 
-void recordState(void) {
+static void recordState(void) {
   static int frames = 0;
   frames += 1;
   if (outputFile == NULL) return;
@@ -144,6 +144,48 @@ void recordState(void) {
   fprintf(outputFile, "%d", 2 * numCogRngCalls);
 
   fprintf(outputFile, "\n");
+}
+
+
+bool handleFrameResult(FrameResult result) {
+  bool success;
+
+  switch (result) {
+  case fr_success:
+    success = true;
+    break;
+  
+  case fr_landed_on_cog:
+    printf("Cog slid under Mario\n");
+    success = false;
+    break;
+  
+  case fr_failed_to_land:
+    printf("No input causes next quarter step to land\n");
+    success = false;
+    break;
+  
+  case fr_slowed_down:
+    printf("Impossible to land without losing speed\n");
+    success = false;
+    break;
+
+  case fr_not_under_ceil:
+    printf("Quarter step not guaranteed to be under ceiling\n");
+    success = false;
+    break;
+  }
+
+  if (success) recordState();
+
+  if (!success) {
+    printf("Final H speed: \x1b[1m%f\x1b[0m\n", mario.hSpeed);
+    printf("Lasted \x1b[%sm%d/%d\x1b[0m cog RNG updates\n",
+      numCogRngCalls >= overrideRngLength ? "92" : "91",
+      numCogRngCalls,
+      overrideRngLength);
+  }
+  return success;
 }
 
 
@@ -194,7 +236,7 @@ int main(int argc, char **argv) {
     runVisualizer();
   }
   else {
-    while (frameAdvance()) {}
+    while (handleFrameResult(frameAdvance())) {}
   }
 
   if (outputFile != NULL)
