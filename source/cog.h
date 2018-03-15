@@ -6,6 +6,7 @@
 
 
 extern s8 *cogRngOverride;
+extern s32 numCogRngCalls;
 
 extern s16 ttcSpeedSetting;
 extern s16 cogModel[];

@@ -1,15 +1,18 @@
 #include "cog.h"
 #include "mario.h"
 #include "ol.h"
+#include "state.h"
 #include "surface.h"
 #include "util.h"
-
-#include <GLFW/glfw3.h>
 
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+
+int runVisualizer(void);
 
 
 static void error(char *fmt, ...) {
@@ -25,192 +28,7 @@ static void error(char *fmt, ...) {
 }
 
 
-bool checkInput(MarioState *m, f32 mag, f32 yaw) {
-  f32 startHSpeed = m->hSpeed;
-
-  m->intendedMag = mag;
-  m->intendedYaw = yaw;
-  updateAirWithoutTurn(m);
-
-  bool works = quarterStepLands(m);
-
-  m->hSpeed = startHSpeed;
-  return works;
-}
-
-
-bool computeOptimalInput(MarioState *m) {
-  for (u16 dyaw = 0; dyaw <= 0x8000; dyaw += 0x10) {
-    if (checkInput(m, 32.0f, m->facingYaw + dyaw)) return true;
-    if (checkInput(m, 32.0f, m->facingYaw - dyaw)) return true;
-  }
-  return false;
-}
-
-
-Object cog;
-MarioState mario;
-
-
-typedef enum {
-  fr_success,
-  fr_landed_on_cog,
-  fr_failed_to_land,
-  fr_slowed_down,
-} FrameResult;
-
-
-FrameResult frameAdvance(void) {
-  clearSurfaces();
-  updateTtcCog(&cog);
-  loadObjectCollisionModel(&cog);
-
-  if (onFloor(&mario))
-    return fr_landed_on_cog;
-
-  f32 startHSpeed = mario.hSpeed;
-
-  if (!computeOptimalInput(&mario))
-    return fr_failed_to_land;
-
-  updateAirWithoutTurn(&mario);
-  
-  if (!quarterStepLands(&mario)) {
-    printf("Internal error: quarter step inconsistency\n");
-    return fr_failed_to_land;
-  }
-
-  if (mario.hSpeed <= startHSpeed)
-    return fr_slowed_down;
-
-  return fr_success;
-}
-
-
-bool unitSquareMode = false;
-int zoomAmount = 0;
-
-
-void drawWalls(void) {
-  glColor3f(0.4f, 0.4f, 0.4f);
-
-  glBegin(GL_LINES);
-  glVertex2f(2081, -861);
-  glVertex2f(862, -2080);
-
-  glVertex2f(2081, 862);
-  glVertex2f(2081, -861);
-  glEnd();
-}
-
-
-void drawUnitSquares(s16 x0, s16 z0, s16 x1, s16 z1) {
-  for (s16 x = x0; x < x1; x++) {
-    for (s16 z = z0; z < z1; z++) {
-      v3f pos = { x, cog.pos.y, z };
-
-      Surface *floor;
-      findFloor(pos, &floor);
-
-      if (floor != NULL) {
-        glBegin(GL_TRIANGLE_STRIP);
-        glVertex2f(pos.x, pos.z);
-        glVertex2f(pos.x + 1, pos.z);
-        glVertex2f(pos.x, pos.z + 1);
-        glVertex2f(pos.x + 1, pos.z + 1);
-        glEnd();
-      }
-    }
-  }
-}
-
-
-void drawSurface(Surface *tri) {
-  glBegin(GL_LINE_LOOP);
-  glVertex2f(tri->vertex1.x, tri->vertex1.z);
-  glVertex2f(tri->vertex2.x, tri->vertex2.z);
-  glVertex2f(tri->vertex3.x, tri->vertex3.z);
-  glEnd();
-}
-
-
-void drawSurfaces(v3f center, f32 span) {
-  if (unitSquareMode) {
-    glColor3f(0.7f, 0.7f, 0.7f);
-    span = 1.5 * span;
-    s16 x0 = (s16) (center.x - span/2) - 1;
-    s16 z0 = (s16) (center.z - span/2) - 1;
-    s16 x1 = (s16) (center.x + span/2) + 1;
-    s16 z1 = (s16) (center.z + span/2) + 1;
-    drawUnitSquares(x0, z0, x1, z1);
-  }
-  else {
-    glColor3f(0.8f, 0.8f, 0.8f);
-    for (SurfaceNode *n = allFloors.tail; n != NULL; n = n->tail)
-      drawSurface(n->head);
-  }
-}
-
-
-void drawMario(MarioState *m) {
-  v3f face = { sins(m->facingYaw), 0, coss(m->facingYaw) };
-  v3f side = { coss(m->facingYaw), 0, -sins(m->facingYaw) };
-
-  f32 width = 30;
-  f32 length = 40;
-
-  glColor3f(0.8f, 0, 0);
-
-  glBegin(GL_TRIANGLES);
-  glVertex2f(
-    m->pos.x - face.x * length - side.x * width/2,
-    m->pos.z - face.z * length - side.z * width/2);
-  glVertex2f(
-    m->pos.x - face.x * length + side.x * width/2,
-    m->pos.z - face.z * length + side.z * width/2);
-  glVertex2f(m->pos.x, m->pos.z);
-  glEnd();
-
-  v3f qstep = {
-    m->pos.x + m->vel.x / 4.0f,
-    m->pos.y + m->vel.y / 4.0f,
-    m->pos.z + m->vel.z / 4.0f,
-  };
-
-  glBegin(GL_LINES);
-  glVertex2f(m->pos.x, m->pos.z);
-  glVertex2f(qstep.x, qstep.z);
-  glEnd();
-}
-
-
-void kbCallback(
-  GLFWwindow *window, int key, int scancode, int action, int mods)
-{
-  (void) window;
-  (void) scancode;
-  (void) mods;
-
-  if (key == GLFW_KEY_U && action == GLFW_PRESS)
-    unitSquareMode = !unitSquareMode;
-
-  if (key == GLFW_KEY_UP && action != GLFW_RELEASE)
-    zoomAmount += 1;
-  if (key == GLFW_KEY_DOWN && action != GLFW_RELEASE)
-    zoomAmount -= 1;
-  if (zoomAmount < -1) zoomAmount = -1;
-  if (zoomAmount > 10) zoomAmount = 10;
-}
-
-
-f32 computeZoomSpan(int zoom) {
-  if (zoom > 0) return 0.5f * computeZoomSpan(zoom - 1);
-  if (zoom < 0) return 1.5f * computeZoomSpan(zoom + 1);
-  return 1200.0f;
-}
-
-
-void loadMario(OlBlock *b) {
+static void loadMario(OlBlock *b) {
   mario.pos.x = ol_checkFieldFloat(b, "x");
   mario.pos.y = cog.pos.y;
   mario.pos.z = ol_checkFieldFloat(b, "z");
@@ -219,19 +37,19 @@ void loadMario(OlBlock *b) {
 }
 
 
-void loadCog(OlBlock *b) {
+static void loadCog(OlBlock *b) {
   cog.displayAngle.yaw = (s32) ol_checkFieldInt(b, "yaw");
   cog.yawVel = ol_checkFieldFloat(b, "speed");
   cog.yawVelTarget = ol_checkFieldFloat(b, "speedtarget");
 }
 
 
-void loadRng(OlBlock *b) {
-  size_t length = 0;
+static void loadRng(OlBlock *b) {
+  overrideRngLength = 0;
   for (OlField *f = b->head; f != NULL; f = f->next)
-    length += 1;
-
-  cogRngOverride = (s8 *) malloc(sizeof(s8) * length);
+    overrideRngLength += 1;
+  
+  cogRngOverride = (s8 *) malloc(overrideRngLength);
 
   size_t i = 0;
   for (OlField *f = b->head; f != NULL; f = f->next) {
@@ -246,8 +64,12 @@ void loadRng(OlBlock *b) {
 }
 
 
-void loadState(char *filename) {
+static void loadState(char *filename) {
   OlBlock *b = ol_parseFile(filename);
+
+  ttcSpeedSetting = ol_checkFieldInt(b, "setting");
+  if (ttcSpeedSetting < 0 || ttcSpeedSetting > 3)
+    error("Invalid TTC speed setting: %d", ttcSpeedSetting);
 
   loadMario(ol_checkField(b, "mario", ol_block)->block);
   loadCog(ol_checkField(b, "cog", ol_block)->block);
@@ -257,60 +79,50 @@ void loadState(char *filename) {
 }
 
 
+static char *inputFilename = NULL;
+static char *outputFilename = NULL;
+static bool visual = false;
+
+
 int main(int argc, char **argv) {
+  int i = 1;
+  while (i < argc) {
+    char *arg = argv[i++];
+
+    if (strcmp(arg, "-o") == 0) {
+      if (i >= argc)
+        error("Expected output filename after -o flag");
+      outputFilename = argv[i++];
+    }
+    else if (strcmp(arg, "-v") == 0) {
+      visual = true;
+    }
+    else {
+      inputFilename = arg;
+    }
+  }
+
+  if (inputFilename == NULL)
+    error("Expected input filename");
+  printf("Input file: \x1b[1m%s\x1b[0m\n", inputFilename);
+  if (outputFilename)
+    printf("Output file: \x1b[1m%s\x1b[0m\n", outputFilename);
+  if (visual)
+    printf("Running in visual mode\n");
+
+  ttcSpeedSetting = 0;
+
   cog.pos = (v3f) { 1490, -2088, -873 };
   cog.surfaceModel = &cogModel[0];
 
-  loadState("test.txt");
+  loadState(inputFilename);
 
-  ttcSpeedSetting = 2;
-
-  glfwInit();
-
-  GLFWwindow *window = glfwCreateWindow(
-    480, 480, "TTC Cog Simulator", NULL, NULL);
-  glfwSetKeyCallback(window, kbCallback);
-  glfwMakeContextCurrent(window);
-
-  while (!glfwWindowShouldClose(window)) {
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    f32 span = computeZoomSpan(zoomAmount);
-
-    glLoadIdentity();
-    glRotatef(45, 0, 0, 1);
-    float scale = 2/span;
-    glScalef(-scale, scale, 1);
-    glTranslatef(-mario.pos.x, -mario.pos.z, 0);
-
-    FrameResult result = frameAdvance();
-    bool failure = false;
-    switch (result) {
-    case fr_success:
-      break;
-    case fr_landed_on_cog:
-      printf("Cog slid under Mario\n");
-      failure = true;
-      break;
-    case fr_failed_to_land:
-      printf("No input causes next quarter step to land\n");
-      failure = true;
-      break;
-    case fr_slowed_down:
-      printf("Impossible to land without losing speed\n");
-      failure = true;
-      break;
-    }
-    if (failure) break;
-
-    drawWalls();
-    drawSurfaces(mario.pos, span);
-    drawMario(&mario);
-
-    glfwSwapBuffers(window);
-    glfwPollEvents();
+  if (visual) {
+    runVisualizer();
+  }
+  else {
+    while (frameAdvance()) {}
   }
 
-  glfwTerminate();
   return 0;
 }

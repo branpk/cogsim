@@ -6,6 +6,7 @@
 
 
 s8 *cogRngOverride;
+s32 numCogRngCalls = 0;
 
 s16 ttcSpeedSetting = 0;
 
@@ -42,6 +43,8 @@ void updateTtcCog(Object *o) {
         rngResult = *cogRngOverride++;
       else
         rngResult = (randomU16() % 7) * randomUnit();
+
+      numCogRngCalls += 1;
 
       // Note: Different associativity than in the actual game, but doesn't
       // matter here.
