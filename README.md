@@ -81,6 +81,8 @@ While in visual mode:
 
 - Pressing the up and down keys zooms in and out, respectively.
 
+- ASDW move the camera.
+
 - Pressing the U key toggles the rendering mode. The default is wireframe, which outlines the cog floor triangles.
 Pressing U switches to unit square mode, which instead colors all unit squares white if they are considered to be
-located above the floor. This can slow down the rendering a bit if you're zoomed out.
+located above the floor.

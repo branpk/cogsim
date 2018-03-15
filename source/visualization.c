@@ -15,6 +15,7 @@
 bool handleFrameResult(FrameResult result);
 
 
+static v3f cameraFocus;
 static bool unitSquareMode = false;
 static int zoomAmount = 0;
 
@@ -162,7 +163,31 @@ static f32 computeZoomSpan(int zoom) {
 }
 
 
+static void updateCamera(GLFWwindow *window) {
+  v3f d = {0, 0, 0};
+
+  if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) d.x -= 1;
+  if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) d.x += 1;
+  if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) d.z -= 1;
+  if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) d.z += 1;
+
+  if (d.x == 0 && d.z == 0) return;
+
+  d = (v3f) {-d.x + -d.z, 0, -d.x + d.z};
+
+  f32 mag = sqrtf(d.x*d.x + d.z*d.z);
+  d.x /= mag;
+  d.z /= mag;
+
+  f32 speed = computeZoomSpan(zoomAmount) / 50.0f;
+  cameraFocus.x += speed * d.x;
+  cameraFocus.z += speed * d.z;
+}
+
+
 void runVisualizer(void) {
+  cameraFocus = mario.pos;
+
   glfwInit();
 
   GLFWwindow *window = glfwCreateWindow(
@@ -188,19 +213,19 @@ void runVisualizer(void) {
     glRotatef(45, 0, 0, 1);
     float scale = 2/span;
     glScalef(-scale, scale, 1);
-    glTranslatef(-mario.pos.x, -mario.pos.z, 0);
+    glTranslatef(-cameraFocus.x, -cameraFocus.z, 0);
 
     double currentTime = glfwGetTime();
     accumTime += currentTime - lastTime;
     lastTime = currentTime;
     while (accumTime >= 1.0/framesPerSec) {
-      frameAdvance();
-      // contUpdating = contUpdating && handleFrameResult(frameAdvance());
+      updateCamera(window);
+      contUpdating = contUpdating && handleFrameResult(frameAdvance());
       accumTime -= 1.0/framesPerSec;
     }
 
     drawWalls();
-    drawSurfaces(mario.pos, span);
+    drawSurfaces(cameraFocus, span);
     drawMario(&mario);
     drawCogCircles();
 
