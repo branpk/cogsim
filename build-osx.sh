@@ -6,7 +6,7 @@ gcc \
   -Wall -Wextra \
   -Wno-missing-braces \
   -lglfw \
-  -lGL \
+  -framework OpenGL \
   -fwrapv \
   -fno-strict-aliasing \
   source/*.c \

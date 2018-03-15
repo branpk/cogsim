@@ -12,6 +12,21 @@
 #include <string.h>
 
 
+#if defined(WIN32)
+
+#include <windows.h>
+
+void win_enable_ansi(void) {
+  HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+  DWORD dwMode = 0;
+  GetConsoleMode(hOut, &dwMode);
+  dwMode |= 4;
+  SetConsoleMode(hOut, dwMode);
+}
+
+#endif
+
+
 int runVisualizer(void);
 
 
@@ -133,6 +148,10 @@ void recordState(void) {
 
 
 int main(int argc, char **argv) {
+#if defined(WIN32)
+  win_enable_ansi();
+#endif
+
   int i = 1;
   while (i < argc) {
     char *arg = argv[i++];
