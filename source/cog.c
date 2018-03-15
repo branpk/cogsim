@@ -2,6 +2,10 @@
 
 #include "util.h"
 
+#include <stdlib.h>
+
+
+s8 *cogRngOverride;
 
 s16 ttcSpeedSetting = 0;
 
@@ -32,8 +36,17 @@ void updateTtcCog(Object *o) {
     break;
   
   case 2:
-    if (incTowardSymFP(&o->yawVel, o->yawVelTarget, 50.0f))
-      o->yawVelTarget = 200.0f * (randomU16() % 7) * randomUnit();
+    if (incTowardSymFP(&o->yawVel, o->yawVelTarget, 50.0f)) {
+      s32 rngResult;
+      if (cogRngOverride != NULL && *cogRngOverride != 127)
+        rngResult = *cogRngOverride++;
+      else
+        rngResult = (randomU16() % 7) * randomUnit();
+
+      // Note: Different associativity than in the actual game, but doesn't
+      // matter here.
+      o->yawVelTarget = 200.0f * rngResult;
+    }
     break;
 
   case 3:

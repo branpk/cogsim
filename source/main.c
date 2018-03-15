@@ -1,12 +1,28 @@
 #include "cog.h"
 #include "mario.h"
+#include "ol.h"
 #include "surface.h"
 #include "util.h"
 
 #include <GLFW/glfw3.h>
 
 #include <math.h>
+#include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
+
+
+static void error(char *fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+
+  fprintf(stderr, "\x1b[91mError:\x1b[0m ");
+  vfprintf(stderr, fmt, args);
+  fprintf(stderr, "\n");
+  
+  va_end(args);
+  exit(1);
+}
 
 
 bool checkInput(MarioState *m, f32 mag, f32 yaw) {
@@ -194,18 +210,60 @@ f32 computeZoomSpan(int zoom) {
 }
 
 
+void loadMario(OlBlock *b) {
+  mario.pos.x = ol_checkFieldFloat(b, "x");
+  mario.pos.y = cog.pos.y;
+  mario.pos.z = ol_checkFieldFloat(b, "z");
+  mario.facingYaw = (s16) ol_checkFieldInt(b, "yaw");
+  mario.hSpeed = ol_checkFieldFloat(b, "hspeed");
+}
+
+
+void loadCog(OlBlock *b) {
+  cog.displayAngle.yaw = (s32) ol_checkFieldInt(b, "yaw");
+  cog.yawVel = ol_checkFieldFloat(b, "speed");
+  cog.yawVelTarget = ol_checkFieldFloat(b, "speedtarget");
+}
+
+
+void loadRng(OlBlock *b) {
+  size_t length = 0;
+  for (OlField *f = b->head; f != NULL; f = f->next)
+    length += 1;
+
+  cogRngOverride = (s8 *) malloc(sizeof(s8) * length);
+
+  size_t i = 0;
+  for (OlField *f = b->head; f != NULL; f = f->next) {
+    int value = (int) f->value->dec;
+    if (value < -6 || value > 6)
+      error("Invalid RNG result value: %d", value);
+
+    cogRngOverride[i++] = (s8) value;
+  }
+
+  cogRngOverride[i] = 127;
+}
+
+
+void loadState(char *filename) {
+  OlBlock *b = ol_parseFile(filename);
+
+  loadMario(ol_checkField(b, "mario", ol_block)->block);
+  loadCog(ol_checkField(b, "cog", ol_block)->block);
+  loadRng(ol_checkFieldArray(b, "rng", ol_dec));
+
+  ol_free(b);
+}
+
+
 int main(int argc, char **argv) {
-  (void) argc;
-  (void) argv;
-
-  ttcSpeedSetting = 3;
-
   cog.pos = (v3f) { 1490, -2088, -873 };
   cog.surfaceModel = &cogModel[0];
 
-  mario.facingYaw = -0x40C;
-  mario.pos = (v3f) { 1420, -2088, -1139.4f };
-  mario.hSpeed = 33;
+  loadState("test.txt");
+
+  ttcSpeedSetting = 2;
 
   glfwInit();
 

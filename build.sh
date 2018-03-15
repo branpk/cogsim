@@ -2,9 +2,12 @@
 
 gcc \
   -std=c99 \
+  -O3 \
   -Wall -Wextra \
+  -Wno-missing-braces \
   -lglfw \
   -framework OpenGL \
-  -Wno-missing-braces \
+  -fwrapv \
+  -fno-strict-aliasing \
   source/*.c \
   -o cogsim

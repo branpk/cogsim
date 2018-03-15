@@ -5,6 +5,8 @@
 #include "util.h"
 
 
+extern s8 *cogRngOverride;
+
 extern s16 ttcSpeedSetting;
 extern s16 cogModel[];
 
