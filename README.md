@@ -60,6 +60,8 @@ rng = {
 3 = still (12)
 ```
 
+The values in `rng` are the ones used by the cog, so should be in the range -6...6.
+
 The rest of the variables should be self-explanatory.
 
 The input format is pretty lenient. White space doesn't matter (including new lines), and you can separate the values
